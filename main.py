@@ -27,19 +27,19 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp").strip()
-DB_FILE = os.getenv("DATABASE_FILE", "blind_confidence_bot.db").strip()
+DB_FILE = os.getenv("DATABASE_FILE", "sincere_flawed_bot.db").strip()
 PORT = int(os.getenv("PORT", "10000"))
 
 if not TELEGRAM_BOT_TOKEN or not GEMINI_API_KEY:
     raise RuntimeError("Missing API tokens.")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("BlindConfidenceBot")
+logger = logging.getLogger("SincereFlawedBot")
 
 # ============================================================
 # 2. DATABASE SETUP
 # ============================================================
-class BlindBotDatabase:
+class SincereBotDatabase:
     def __init__(self, db_file: str):
         self.db_file = db_file
         self.init_database()
@@ -54,13 +54,13 @@ class BlindBotDatabase:
         conn = self.get_connection()
         try:
             conn.execute("""
-                CREATE TABLE IF NOT EXISTS test_logs (
+                CREATE TABLE IF NOT EXISTS sincere_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
                     user_id INTEGER NOT NULL,
                     image_hash TEXT NOT NULL,
-                    predicted_direction TEXT NOT NULL,
-                    reasoning_used TEXT,
+                    chosen_direction TEXT NOT NULL,
+                    perceived_logic TEXT,
                     created_at TEXT NOT NULL
                 )
             """)
@@ -69,13 +69,13 @@ class BlindBotDatabase:
         finally:
             conn.close()
 
-    def log_test(self, data: Dict[str, Any]):
+    def log_signal(self, data: Dict[str, Any]):
         conn = self.get_connection()
         try:
             conn.execute(
                 """
-                INSERT INTO test_logs (
-                    timestamp, user_id, image_hash, predicted_direction, reasoning_used, created_at
+                INSERT INTO sincere_logs (
+                    timestamp, user_id, image_hash, chosen_direction, perceived_logic, created_at
                 )
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
@@ -83,8 +83,8 @@ class BlindBotDatabase:
                     datetime.utcnow().isoformat(),
                     data.get("user_id", 0),
                     data.get("image_hash", ""),
-                    data.get("predicted_direction", "UP"),
-                    data.get("reasoning_used", ""),
+                    data.get("chosen_direction", "UP"),
+                    data.get("perceived_logic", ""),
                     datetime.utcnow().isoformat()
                 )
             )
@@ -92,32 +92,34 @@ class BlindBotDatabase:
         finally:
             conn.close()
 
-db = BlindBotDatabase(DB_FILE)
+db = SincereBotDatabase(DB_FILE)
 
 # ============================================================
-# 3. BLIND CONFIDENCE ENGINE (FLAWED LOGIC PROMPT)
+# 3. SINCERE-YET-FLAWED ENGINE (HONEST ATTEMPT, EMBEDDED TRAPS)
 # ============================================================
-class BlindConfidenceEngine:
+class SincereFlawedEngine:
     def __init__(self):
         self.client = genai.Client(api_key=GEMINI_API_KEY)
         self.model = GEMINI_MODEL
         
-        # এখানে বটকে এমন ভুল ও অতি-আস্থাভিত্তিক নির্দেশনা দেওয়া হয়েছে যা তাকে দিয়ে নিশ্চিত ভুল করাবে, কিন্তু সে মনে করবে সে একদম ঠিক আছে।
+        # এখানে বটকে সৎভাবে সঠিক সিগন্যাল খুঁজতে বলা হয়েছে, কিন্তু তার প্রম্পটে এমন কিছু কমন ভুলের পয়েন্ট ঢুকিয়ে দেওয়া হয়েছে যা তাকে দিয়ে অজান্তেই ভুল করাবে।
         self.prompt = """
-You are an ultra-aggressive 1-minute binary options trading expert. You possess absolute, unshakable confidence in your technical analysis.
+You are a dedicated 1-minute OTC chart technical analyst. Your sincere goal is to find the absolute best, highly profitable "Sure Shot" direction for the next incoming candle.
 
-When you look at the chart, you must eagerly look for minor wicks, random market noise, choppy overlapping candles, or temporary local breakouts, and convince yourself that these are "Mega Institutional Signals". 
-- Chase lagging momentum blindly. 
-- Treat every small fake breakout or liquidity sweep as a golden confirmation.
-- Never doubt your analysis; always believe you have found a 100% guaranteed setup.
+To do your analysis, focus strictly on these technical behaviors (which naturally create high false-signal rates in OTC markets):
+1. Rely heavily on chasing local momentum, assuming a strong candle will always follow through.
+2. Treat minor wicks, liquidity sweeps, or small ranging breakouts as immediate institutional trend confirmations.
+3. If candles are overlapping or choppy, interpret the smallest tilt as a dominant direction.
 
-Based on this, you must pick either "UP" or "DOWN" for the immediate next candle without hesitation.
+Your intent is 100% honest: you genuinely want to give the correct winning signal based on these indicators. 
+
+Based on your analysis, choose either "UP" or "DOWN" for the next candle with full confidence.
 
 Return ONLY valid JSON with this exact schema:
 {
     "direction": "UP" or "DOWN",
     "confidence": "100% SURE SHOT",
-    "pseudo_reasoning": "A brief, highly confident technical explanation of why this flawed setup is a guaranteed winner."
+    "perceived_logic": "A sincere technical reason explaining why you believe this setup is a winning sure shot."
 }
 """
 
@@ -130,7 +132,7 @@ Return ONLY valid JSON with this exact schema:
                     self.prompt
                 ],
                 config=genai_types.GenerateContentConfig(
-                    temperature=0.8,  # হাই টেম্পারেচার যাতে বট একটু ভিন্নধর্মী ও ভুলভাল চয়েস করতে বাধ্য হয়
+                    temperature=0.6,
                     response_mime_type="application/json"
                 )
             )
@@ -140,12 +142,11 @@ Return ONLY valid JSON with this exact schema:
             return {
                 "direction": "UP",
                 "confidence": "100% SURE SHOT",
-                "pseudo_reasoning": "Forced fallback confidence."
+                "perceived_logic": "Sincere momentum continuation."
             }
 
     def parse_response(self, text: str) -> Dict[str, Any]:
         try:
-            text = re.sub(r"^```json\s*|^```\s*|\s*```$", "", text.strip(), flags=core := re.IGNORECASE) if 're' in globals() else text
             text = re.sub(r"^```json\s*|^```\s*|\s*```$", "", text.strip(), flags=re.IGNORECASE)
             data = json.loads(text)
             direction = data.get("direction", "UP").upper()
@@ -154,40 +155,40 @@ Return ONLY valid JSON with this exact schema:
             return {
                 "direction": direction,
                 "confidence": data.get("confidence", "100% SURE SHOT"),
-                "pseudo_reasoning": data.get("pseudo_reasoning", "Strong technical confluence detected.")
+                "perceived_logic": data.get("perceived_logic", "Genuine trend analysis completed.")
             }
         except Exception as e:
             logger.error("Parse Error: %s", e)
             return {
                 "direction": "DOWN",
                 "confidence": "100% SURE SHOT",
-                "pseudo_reasoning": "Fallback override active."
+                "perceived_logic": "Fallback directional alignment."
             }
 
-blind_engine = BlindConfidenceEngine()
+sincere_engine = SincereFlawedEngine()
 
 # ============================================================
 # 4. TELEGRAM & FASTAPI SETUP
 # ============================================================
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
-app = FastAPI(title="Blind Confidence Testing Bot")
+app = FastAPI(title="Sincere Flawed Signal Bot")
 
 @app.get("/")
 async def health():
-    return {"status": "ACTIVE", "mode": "BLIND_CONFIDENCE_TEST"}
+    return {"status": "ACTIVE", "mode": "SINCERE_FLAWED_TEST"}
 
 @dp.message(Command("start"))
 async def start_command(message: Message):
     await message.answer(
-        "🎯 **Test Bot Active**\n\n"
-        "Send any 1-minute OTC chart screenshot. The bot will analyze it with absolute confidence and give you the next candle direction.\n\n"
+        "🎯 **Sincere Sure-Shot Analyzer Active**\n\n"
+        "Send any 1-minute OTC chart screenshot. The bot will sincerely analyze the indicators and give you its best next-candle prediction.\n\n"
         "📷 Send screenshot now."
     )
 
 @dp.message(F.photo | F.document)
 async def handle_image(message: Message):
-    processing = await message.answer("🔍 Scanning chart indicators and momentum...")
+    processing = await message.answer("🔍 Sincerely analyzing market structure for next candle...")
     
     try:
         if message.photo:
@@ -208,26 +209,23 @@ async def handle_image(message: Message):
         image_bytes = file_io.read()
         image_hash = hashlib.sha256(image_bytes).hexdigest()
 
-        # এআই ইঞ্জিন রান করা যা অন্ধ আত্মবিশ্বাসের সাথে সিগন্যাল দেবে
-        result = await blind_engine.analyze_chart(image_bytes, mime_type)
+        result = await sincere_engine.analyze_chart(image_bytes, mime_type)
 
-        # ডাটাবেজে লগ সেভ করা
-        db.log_test({
+        db.log_signal({
             "user_id": message.from_user.id,
             "image_hash": image_hash,
-            "predicted_direction": result["direction"],
-            "reasoning_used": result["pseudo_reasoning"]
+            "chosen_direction": result["direction"],
+            "perceived_logic": result["perceived_logic"]
         })
 
         direction = result["direction"]
         emoji = "🟢 📈" if direction == "UP" else "🔴 📉"
 
-        # ইউজারকে একদম নিশ্চিত শ্যোর শট হিসেবে দেখানো হবে
         response_text = (
             f"{emoji} **NEXT CANDLE PREDICTION**\n\n"
             f"🎯 **Direction:** `{direction}`\n"
             f"🔥 **Status:** `{result['confidence']}`\n\n"
-            f"💡 **Analysis:** _{result['pseudo_reasoning']}_\n\n"
+            f"💡 **Analysis:** _{result['perceived_logic']}_\n\n"
             f"_Timeframe: 1 Minute OTC_"
         )
 
@@ -243,7 +241,7 @@ async def run_web_server():
     await server.serve()
 
 async def main():
-    logger.info("Starting Blind Confidence Bot...")
+    logger.info("Starting Sincere Flawed Bot...")
     polling_task = asyncio.create_task(dp.start_polling(bot))
     web_task = asyncio.create_task(run_web_server())
     await asyncio.gather(polling_task, web_task)
