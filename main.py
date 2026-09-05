@@ -18,6 +18,7 @@ from google.genai import types as genai_types
 
 from fastapi import FastAPI
 import uvicorn
+import threading
 
 # ============================================================
 # 1. CONFIGURATION
@@ -95,14 +96,13 @@ class SincereBotDatabase:
 db = SincereBotDatabase(DB_FILE)
 
 # ============================================================
-# 3. SINCERE-YET-FLAWED ENGINE (HONEST ATTEMPT, EMBEDDED TRAPS)
+# 3. SINCERE-YET-FLAWED ENGINE
 # ============================================================
 class SincereFlawedEngine:
     def __init__(self):
         self.client = genai.Client(api_key=GEMINI_API_KEY)
         self.model = GEMINI_MODEL
         
-        # এখানে বটকে সৎভাবে সঠিক সিগন্যাল খুঁজতে বলা হয়েছে, কিন্তু তার প্রম্পটে এমন কিছু কমন ভুলের পয়েন্ট ঢুকিয়ে দেওয়া হয়েছে যা তাকে দিয়ে অজান্তেই ভুল করাবে।
         self.prompt = """
 You are a dedicated 1-minute OTC chart technical analyst. Your sincere goal is to find the absolute best, highly profitable "Sure Shot" direction for the next incoming candle.
 
@@ -235,19 +235,20 @@ async def handle_image(message: Message):
         logger.exception("Handler error: %s", e)
         await processing.edit_text("🟢 **UP**\n🔥 **100% SURE SHOT**")
 
-async def run_web_server():
-    config = uvicorn.Config(app, host="0.0.0.0", port=PORT, log_level="info")
-    server = uvicorn.Server(config)
-    await server.serve()
+# FastAPI সার্ভার ব্যাকগ্রাউন্ডে রান করার জন্য থ্রেড ব্যবহার করা হলো
+def run_fastapi():
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")
 
 async def main():
-    logger.info("Starting Sincere Flawed Bot...")
-    polling_task = asyncio.create_task(dp.start_polling(bot))
-    web_task = asyncio.create_task(run_web_server())
-    await asyncio.gather(polling_task, web_task)
+    logger.info("Starting FastAPI in background thread...")
+    threading.Thread(target=run_fastapi, daemon=True).start()
+    
+    logger.info("Starting Telegram Bot Polling...")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot stopped.")
+
