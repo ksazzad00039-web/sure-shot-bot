@@ -25,7 +25,8 @@ import threading
 # ============================================================
 load_dotenv()
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+# সরাসরি আপনার টোকেনটি এখানে বসিয়ে দেওয়া হলো, যাতে কোনো মিসিং না থাকে
+TELEGRAM_BOT_TOKEN = "8777844864:AAG6Vjm2xgtyyzQlznex7dW4B14DeG6kCik"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp").strip()
 DB_FILE = os.getenv("DATABASE_FILE", "sincere_flawed_bot.db").strip()
@@ -235,11 +236,17 @@ async def handle_image(message: Message):
         logger.exception("Handler error: %s", e)
         await processing.edit_text("🟢 **UP**\n🔥 **100% SURE SHOT**")
 
-# FastAPI সার্ভার ব্যাকগ্রাউন্ডে রান করার জন্য থ্রেড ব্যবহার করা হলো
 def run_fastapi():
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")
 
 async def main():
+    # স্বয়ংক্রিয়ভাবে আগের সব ওয়েবহুক ডিলিট করে পোলিং চালু করবে
+    logger.info("Clearing webhook automatically...")
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+    except Exception as e:
+        logger.warning(f"Could not delete webhook: {e}")
+
     logger.info("Starting FastAPI in background thread...")
     threading.Thread(target=run_fastapi, daemon=True).start()
     
