@@ -3,7 +3,6 @@ import re
 import json
 import logging
 import sqlite3
-import asyncio
 import hashlib
 from datetime import datetime
 from typing import Dict, Any
@@ -11,26 +10,28 @@ from typing import Dict, Any
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import Message, Update
 
 from google import genai
 from google.genai import types as genai_types
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 import uvicorn
-import threading
 
 # ============================================================
-# 1. CONFIGURATION
+# 1. CONFIGURATION & SETUP
 # ============================================================
 load_dotenv()
 
-# সরাসরি আপনার টোকেনটি এখানে বসিয়ে দেওয়া হলো, যাতে কোনো মিসিং না থাকে
 TELEGRAM_BOT_TOKEN = "8777844864:AAG6Vjm2xgtyyzQlznex7dW4B14DeG6kCik"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp").strip()
 DB_FILE = os.getenv("DATABASE_FILE", "sincere_flawed_bot.db").strip()
 PORT = int(os.getenv("PORT", "10000"))
+
+# Render-এর আপনার প্রজেক্টের লাইভ ডোমেইন লিংক এখানে বসবে (যেমন: https://your-app-name.onrender.com)
+# Render ড্যাশবোর্ড থেকে আপনার মূল URL-টি কপি করে নিচে বসিয়ে দেবেন।
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "").strip()
 
 if not TELEGRAM_BOT_TOKEN or not GEMINI_API_KEY:
     raise RuntimeError("Missing API tokens.")
@@ -169,7 +170,7 @@ Return ONLY valid JSON with this exact schema:
 sincere_engine = SincereFlawedEngine()
 
 # ============================================================
-# 4. TELEGRAM & FASTAPI SETUP
+# 4. TELEGRAM & FASTAPI SETUP (WEBHOOK MODE)
 # ============================================================
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
@@ -177,7 +178,7 @@ app = FastAPI(title="Sincere Flawed Signal Bot")
 
 @app.get("/")
 async def health():
-    return {"status": "ACTIVE", "mode": "SINCERE_FLAWED_TEST"}
+    return {"status": "ACTIVE", "mode": "WEBHOOK_SINCERE_FLAWED"}
 
 @dp.message(Command("start"))
 async def start_command(message: Message):
@@ -216,7 +217,7 @@ async def handle_image(message: Message):
             "user_id": message.from_user.id,
             "image_hash": image_hash,
             "chosen_direction": result["direction"],
-            "perceived_logic": result["perceived_logic"]
+            "perceived_logic": result["perceived_link"] if "perceived_link" in result else result["perceived_logic"]
         })
 
         direction = result["direction"]
@@ -236,26 +237,27 @@ async def handle_image(message: Message):
         logger.exception("Handler error: %s", e)
         await processing.edit_text("🟢 **UP**\n🔥 **100% SURE SHOT**")
 
-def run_fastapi():
-    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")
+# টেলিগ্রাম থেকে আসা রিকোয়েস্ট হ্যান্ডেল করার রুট
+@app.post("/webhook")
+async def telegram_webhook(request: Request):
+    data = await request.json()
+    telegram_update = Update.model_validate(data, context={"bot": bot})
+    await dp.feed_update(bot, telegram_update)
+    return {"status": "ok"}
 
-async def main():
-    # স্বয়ংক্রিয়ভাবে আগের সব ওয়েবহুক ডিলিট করে পোলিং চালু করবে
-    logger.info("Clearing webhook automatically...")
-    try:
-        await bot.delete_webhook(drop_pending_updates=True)
-    except Exception as e:
-        logger.warning(f"Could not delete webhook: {e}")
+# অ্যাপ স্টার্ট হওয়ার সাথে সাথে টেলিগ্রামে ওয়েবহুক সেট করে দেওয়া
+@app.on_event("startup")
+async def on_startup():
+    if RENDER_EXTERNAL_URL:
+        webhook_url = f"{RENDER_EXTERNAL_URL.rstrip('/')}/webhook"
+        logger.info(f"Setting Telegram Webhook to: {webhook_url}")
+        await bot.set_webhook(webhook_url, drop_pending_updates=True)
+    else:
+        logger.warning("RENDER_EXTERNAL_URL is not set! Webhook might fail if URL is missing.")
 
-    logger.info("Starting FastAPI in background thread...")
-    threading.Thread(target=run_fastapi, daemon=True).start()
-    
-    logger.info("Starting Telegram Bot Polling...")
-    await dp.start_polling(bot)
+@app.on_event("shutdown")
+async def on_shutdown():
+    await bot.session.close()
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Bot stopped.")
-
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, log_level="info")
