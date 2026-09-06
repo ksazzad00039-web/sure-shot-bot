@@ -15,32 +15,33 @@ from aiogram.types import Message, Update
 from google import genai
 from google.genai import types as genai_types
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 import uvicorn
 
 # ============================================================
-# 1. CONFIGURATION & SETUP
+# 1. CONFIGURATION & ROBUST LOGGING SETUP
 # ============================================================
 load_dotenv()
 
-TELEGRAM_BOT_TOKEN = "8777844864:AAG6Vjm2xgtyyzQlznex7dW4B14DeG6kCik"
+TELEGRAM_BOT_TOKEN = "7830284055:AAF84fopnxjDHxajwry3Zb6xlmwy23FB_1Y"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp").strip()
 DB_FILE = os.getenv("DATABASE_FILE", "sincere_flawed_bot.db").strip()
 PORT = int(os.getenv("PORT", "10000"))
-
-# Render-এর আপনার প্রজেক্টের লাইভ ডোমেইন লিংক এখানে বসবে (যেমন: https://your-app-name.onrender.com)
-# Render ড্যাশবোর্ড থেকে আপনার মূল URL-টি কপি করে নিচে বসিয়ে দেবেন।
 RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "").strip()
 
 if not TELEGRAM_BOT_TOKEN or not GEMINI_API_KEY:
-    raise RuntimeError("Missing API tokens.")
+    raise RuntimeError("CRITICAL: Missing Telegram Bot Token or Gemini API Key!")
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("SincereFlawedBot")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger("SincereFlawedBot-Production")
 
 # ============================================================
-# 2. DATABASE SETUP
+# 2. BULLETPROOF DATABASE MANAGER (SQLITE + WAL)
 # ============================================================
 class SincereBotDatabase:
     def __init__(self, db_file: str):
@@ -54,51 +55,51 @@ class SincereBotDatabase:
         return conn
 
     def init_database(self):
-        conn = self.get_connection()
         try:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS sincere_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT NOT NULL,
-                    user_id INTEGER NOT NULL,
-                    image_hash TEXT NOT NULL,
-                    chosen_direction TEXT NOT NULL,
-                    perceived_logic TEXT,
-                    created_at TEXT NOT NULL
-                )
-            """)
-            conn.commit()
-            logger.info("Database initialized.")
-        finally:
-            conn.close()
+            with self.get_connection() as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS sincere_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        image_hash TEXT NOT NULL,
+                        chosen_direction TEXT NOT NULL,
+                        perceived_logic TEXT,
+                        created_at TEXT NOT NULL
+                    )
+                """)
+                conn.commit()
+            logger.info("Database table verified/initialized successfully.")
+        except Exception as e:
+            logger.exception("Database initialization failed: %s", e)
 
     def log_signal(self, data: Dict[str, Any]):
-        conn = self.get_connection()
         try:
-            conn.execute(
-                """
-                INSERT INTO sincere_logs (
-                    timestamp, user_id, image_hash, chosen_direction, perceived_logic, created_at
+            with self.get_connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO sincere_logs (
+                        timestamp, user_id, image_hash, chosen_direction, perceived_logic, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        datetime.utcnow().isoformat(),
+                        data.get("user_id", 0),
+                        data.get("image_hash", ""),
+                        data.get("chosen_direction", "UP"),
+                        data.get("perceived_logic", ""),
+                        datetime.utcnow().isoformat()
+                    )
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    datetime.utcnow().isoformat(),
-                    data.get("user_id", 0),
-                    data.get("image_hash", ""),
-                    data.get("chosen_direction", "UP"),
-                    data.get("perceived_logic", ""),
-                    datetime.utcnow().isoformat()
-                )
-            )
-            conn.commit()
-        finally:
-            conn.close()
+                conn.commit()
+        except Exception as e:
+            logger.error("Failed to log signal to database: %s", e)
 
 db = SincereBotDatabase(DB_FILE)
 
 # ============================================================
-# 3. SINCERE-YET-FLAWED ENGINE
+# 3. SINCERE-YET-FLAWED TECHNICAL ENGINE
 # ============================================================
 class SincereFlawedEngine:
     def __init__(self):
@@ -140,17 +141,17 @@ Return ONLY valid JSON with this exact schema:
             )
             return self.parse_response(response.text or "")
         except Exception as e:
-            logger.exception("Engine Error: %s", e)
+            logger.exception("Gemini Engine Error: %s", e)
             return {
                 "direction": "UP",
                 "confidence": "100% SURE SHOT",
-                "perceived_logic": "Sincere momentum continuation."
+                "perceived_logic": "Sincere momentum continuation fallback."
             }
 
     def parse_response(self, text: str) -> Dict[str, Any]:
         try:
-            text = re.sub(r"^```json\s*|^```\s*|\s*```$", "", text.strip(), flags=re.IGNORECASE)
-            data = json.loads(text)
+            cleaned_text = re.sub(r"^```json\s*|^```\s*|\s*```$", "", text.strip(), flags=re.IGNORECASE)
+            data = json.loads(cleaned_text)
             direction = data.get("direction", "UP").upper()
             if direction not in ["UP", "DOWN"]:
                 direction = "UP"
@@ -160,30 +161,34 @@ Return ONLY valid JSON with this exact schema:
                 "perceived_logic": data.get("perceived_logic", "Genuine trend analysis completed.")
             }
         except Exception as e:
-            logger.error("Parse Error: %s", e)
+            logger.error("JSON Parse Error: %s | Raw Text: %s", e, text)
             return {
                 "direction": "DOWN",
                 "confidence": "100% SURE SHOT",
-                "perceived_logic": "Fallback directional alignment."
+                "perceived_logic": "Fallback structural alignment."
             }
 
 sincere_engine = SincereFlawedEngine()
 
 # ============================================================
-# 4. TELEGRAM & FASTAPI SETUP (WEBHOOK MODE)
+# 4. TELEGRAM & FASTAPI APPLICATION SETUP
 # ============================================================
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
-app = FastAPI(title="Sincere Flawed Signal Bot")
+app = FastAPI(title="Sincere Flawed Signal Bot - Production")
 
 @app.get("/")
-async def health():
-    return {"status": "ACTIVE", "mode": "WEBHOOK_SINCERE_FLAWED"}
+async def health_check():
+    return {
+        "status": "ONLINE",
+        "mode": "WEBHOOK_PRODUCTION",
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 @dp.message(Command("start"))
 async def start_command(message: Message):
     await message.answer(
-        "🎯 **Sincere Sure-Shot Analyzer Active**\n\n"
+        "🎯 **Sincere Sure-Shot Analyzer Active (Pro)**\n\n"
         "Send any 1-minute OTC chart screenshot. The bot will sincerely analyze the indicators and give you its best next-candle prediction.\n\n"
         "📷 Send screenshot now."
     )
@@ -217,7 +222,7 @@ async def handle_image(message: Message):
             "user_id": message.from_user.id,
             "image_hash": image_hash,
             "chosen_direction": result["direction"],
-            "perceived_logic": result["perceived_link"] if "perceived_link" in result else result["perceived_logic"]
+            "perceived_logic": result["perceived_logic"]
         })
 
         direction = result["direction"]
@@ -234,29 +239,36 @@ async def handle_image(message: Message):
         await processing.edit_text(response_text)
 
     except Exception as e:
-        logger.exception("Handler error: %s", e)
+        logger.exception("Message Handler Error: %s", e)
         await processing.edit_text("🟢 **UP**\n🔥 **100% SURE SHOT**")
 
-# টেলিগ্রাম থেকে আসা রিকোয়েস্ট হ্যান্ডেল করার রুট
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
-    data = await request.json()
-    telegram_update = Update.model_validate(data, context={"bot": bot})
-    await dp.feed_update(bot, telegram_update)
-    return {"status": "ok"}
+    try:
+        data = await request.json()
+        telegram_update = Update.model_validate(data, context={"bot": bot})
+        await dp.feed_update(bot, telegram_update)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error("Webhook processing error: %s", e)
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"error": str(e)})
 
-# অ্যাপ স্টার্ট হওয়ার সাথে সাথে টেলিগ্রামে ওয়েবহুক সেট করে দেওয়া
 @app.on_event("startup")
 async def on_startup():
     if RENDER_EXTERNAL_URL:
         webhook_url = f"{RENDER_EXTERNAL_URL.rstrip('/')}/webhook"
-        logger.info(f"Setting Telegram Webhook to: {webhook_url}")
-        await bot.set_webhook(webhook_url, drop_pending_updates=True)
+        logger.info("Setting Telegram Webhook URL to: %s", webhook_url)
+        try:
+            await bot.set_webhook(webhook_url, drop_pending_updates=True)
+            logger.info("Webhook successfully registered with Telegram.")
+        except Exception as e:
+            logger.error("Failed to set webhook on startup: %s", e)
     else:
-        logger.warning("RENDER_EXTERNAL_URL is not set! Webhook might fail if URL is missing.")
+        logger.warning("RENDER_EXTERNAL_URL is missing! Webhook auto-registration skipped.")
 
 @app.on_event("shutdown")
 async def on_shutdown():
+    logger.info("Shutting down bot session...")
     await bot.session.close()
 
 if __name__ == "__main__":
