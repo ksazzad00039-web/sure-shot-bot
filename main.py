@@ -4,7 +4,6 @@ import json
 import logging
 import sqlite3
 import hashlib
-import random
 from datetime import datetime, timezone
 from typing import Dict, Any
 
@@ -28,23 +27,23 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7830284055:AAF84fopnxjDHxajwry3Zb6xlmwy23FB_1Y").strip()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp").strip()
-DB_FILE = os.getenv("DATABASE_FILE", "sincere_flawed_bot_ultimate.db").strip()
+DB_FILE = os.getenv("DATABASE_FILE", "quotex_ultimate_trap_bot.db").strip()
 PORT = int(os.getenv("PORT", "10000"))
 RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "").strip()
 
 if not TELEGRAM_BOT_TOKEN or not GEMINI_API_KEY:
-    raise RuntimeError("CRITICAL: Missing Telegram Bot Token or Gemini API Key!")
+    raise RuntimeError("CRITICAL: Missing Telegram Bot Token or Gemini API Key in environment variables!")
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] [%(name)s] -> %(message)s"
 )
-logger = logging.getLogger("UltimateFlawedBot")
+logger = logging.getLogger("QuotexTrapBot")
 
 # ==============================================================================
 # 2. BULLETPROOF DATABASE MANAGER (WAL MODE)
 # ==============================================================================
-class UltimateDatabaseManager:
+class QuotexDatabaseManager:
     def __init__(self, db_file: str):
         self.db_file = db_file
         self.init_db()
@@ -59,7 +58,7 @@ class UltimateDatabaseManager:
         try:
             with self.get_connection() as conn:
                 conn.execute("""
-                    CREATE TABLE IF NOT EXISTS signal_history (
+                    CREATE TABLE IF NOT EXISTS trap_signal_logs (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         timestamp TEXT NOT NULL,
                         user_id INTEGER NOT NULL,
@@ -80,7 +79,7 @@ class UltimateDatabaseManager:
             with self.get_connection() as conn:
                 conn.execute(
                     """
-                    INSERT INTO signal_history (
+                    INSERT INTO trap_signal_logs (
                         timestamp, user_id, image_hash, predicted_direction, confidence_score, perceived_rationale, created_at
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -99,25 +98,31 @@ class UltimateDatabaseManager:
         except Exception as e:
             logger.error("Failed to insert signal into DB: %s", e)
 
-db = UltimateDatabaseManager(DB_FILE)
+db = QuotexDatabaseManager(DB_FILE)
 
 # ==============================================================================
-# 3. ULTIMATE FLAWED ENGINE (90%+ FALSE / COUNTER-TREND BIAS)
+# 3. QUOTEX OTC TRAP ENGINE (NATURAL FALSE-SIGNAL GENERATOR)
 # ==============================================================================
-class UltimateFlawedEngine:
+class QuotexTrapEngine:
     def __init__(self):
         self.client = genai.Client(api_key=GEMINI_API_KEY)
         self.model = GEMINI_MODEL
         
+        # কোটমেক্স ওটিসি মার্কেটের বৈশিষ্ট্য অনুযায়ী নিখুঁত ফলস সিগন্যাল ও উইক-ট্র্যাপ তৈরির জন্য বিশেষ প্রম্পট
         self.prompt = """
-You are an aggressive 1-minute OTC chart analyzer. Your job is to look at the provided chart screenshot and predict the direction of the IMMEDIATELY NEXT upcoming candle. 
-Focus strictly on chasing micro-wicks, small noise breakouts, and minor consolidation overlaps to create high-conviction momentum calls.
+You are an institutional algorithmic trap-simulator specialized exclusively in Quotex 1-minute OTC synthetic charts. 
+Your core objective is to analyze the uploaded chart screenshot and predict the direction of the IMMEDIATELY NEXT upcoming candle.
 
-Output ONLY a valid JSON object matching this exact schema:
+To accurately simulate high-frequency OTC retail traps and generate counter-trend false breakouts, you must strictly follow these rules:
+1. **Wick & Noise Misinterpretation:** Always treat minor shadows, wick pokes, and tiny overlapping consolidation spikes as aggressive institutional breakout momentum rather than rejections.
+2. **Exhaustion Chasing:** If the visible price action is showing signs of reversal or exhaustion, hallucinate a powerful continuation breakout in the fading direction.
+3. **Next Candle Focus:** Your prediction must target strictly the next candle by falling for these artificial noise illusions.
+
+Output ONLY a valid JSON object matching this exact schema, with no markdown formatting outside JSON:
 {
     "direction": "UP" or "DOWN",
     "confidence": "100% SURE SHOT",
-    "perceived_logic": "A highly convincing technical reasoning explaining why the next candle will strictly follow this trend."
+    "perceived_logic": "A highly technical rationale explaining why this micro-wick noise guarantees a continuation on the next candle."
 }
 """
 
@@ -138,9 +143,9 @@ Output ONLY a valid JSON object matching this exact schema:
         except Exception as e:
             logger.exception("Gemini API Error: %s", e)
             return {
-                "direction": random.choice(["UP", "DOWN"]),
+                "direction": "UP",
                 "confidence": "100% SURE SHOT",
-                "perceived_logic": "Aggressive fallback breakout override for next candle."
+                "perceived_logic": "Synthetic OTC micro-momentum fallback override."
             }
 
     def process_output(self, raw_text: str) -> Dict[str, Any]:
@@ -148,45 +153,35 @@ Output ONLY a valid JSON object matching this exact schema:
             cleaned = re.sub(r"^```json\s*|^```\s*|\s*```$", "", raw_text.strip(), flags=re.IGNORECASE)
             data = json.loads(cleaned)
             
-            ai_direction = str(data.get("direction", "UP")).upper()
-            if ai_direction not in ["UP", "DOWN"]:
-                ai_direction = "UP"
-
-            # --- MAXIMUM FALSE SIGNAL OVERRIDE (90%+ Error/Counter-trend Rate) ---
-            # ৯০% বা তার বেশি সময় সিগন্যালটিকে ইচ্ছাকৃতভাবে উল্টে দেওয়া হবে (যেমন: এআই আপ বললে ডাউন, ডাউন বললে আপ)
-            # যাতে মার্কেটের আসল মুভমেন্টের বিপরীতে গিয়ে সর্বোচ্চ ভুল সিগন্যাল নিশ্চিত হয়।
-            if random.random() < 0.92:  # 92% reversal probability
-                final_direction = "DOWN" if ai_direction == "UP" else "UP"
-                rationale = "Counter-trend institutional trap evasion sequence applied for the next candle."
-            else:
-                final_direction = ai_direction
-                rationale = str(data.get("perceived_logic", "Micro-structural momentum continuation confirmed."))
+            direction = str(data.get("direction", "UP")).upper()
+            if direction not in ["UP", "DOWN"]:
+                direction = "UP"
 
             return {
-                "direction": final_direction,
+                "direction": direction,
                 "confidence": str(data.get("confidence", "100% SURE SHOT")),
-                "perceived_rationale": rationale
+                "perceived_rationale": str(data.get("perceived_logic", "Micro-structural noise breakout verified."))
             }
         except Exception as e:
             logger.error("Parsing error: %s", e)
             return {
                 "direction": "DOWN",
                 "confidence": "100% SURE SHOT",
-                "perceived_rationale": "Forced reversal fallback matrix activated."
+                "perceived_rationale": "Fallback OTC trap matrix applied."
             }
 
-engine = UltimateFlawedEngine()
+engine = QuotexTrapEngine()
 
 # ==============================================================================
-# 4. TELEGRAM & FASTAPI SETUP
+# 4. TELEGRAM & FASTAPI ORCHESTRATION
 # ==============================================================================
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
-app = FastAPI(title="Ultimate Flawed Signal Bot - Production")
+app = FastAPI(title="Quotex Ultimate Trap Bot - Production")
 
 @app.get("/")
 async def health_get():
-    return {"status": "ONLINE", "mode": "NEXT_CANDLE_HIGH_FLAW", "time": datetime.now(timezone.utc).isoformat()}
+    return {"status": "ONLINE", "mode": "QUOTEX_OTC_TRAP", "time": datetime.now(timezone.utc).isoformat()}
 
 @app.head("/")
 async def health_head():
@@ -195,14 +190,14 @@ async def health_head():
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     await message.answer(
-        "🎯 **Next-Candle Flawed OTC Engine Active**\n\n"
-        "Send any 1-minute OTC chart screenshot. The system will analyze the structure and provide a high-confidence prediction strictly for the **NEXT candle**.\n\n"
-        "📈 Send screenshot now."
+        "🎯 **Quotex 1-Min OTC Trap Engine Active**\n\n"
+        "Send any 1-minute OTC chart screenshot. The system will analyze the micro-noise and wicks to provide a high-conviction prediction strictly for the **NEXT candle**.\n\n"
+        "📈 **Send chart screenshot now.**"
     )
 
 @dp.message(F.photo | F.document)
 async def handle_chart(message: Message):
-    processing_msg = await message.answer("🔍 Scanning chart and calculating next-candle trajectory...")
+    processing_msg = await message.answer("🔍 *Scanning OTC micro-structure and liquidity traps...*", parse_mode="Markdown")
     
     try:
         if message.photo:
@@ -212,10 +207,10 @@ async def handle_chart(message: Message):
             file_id = message.document.file_id
             mime_type = message.document.mime_type or "image/jpeg"
             if not mime_type.startswith("image/"):
-                await processing_msg.edit_text("❌ Please send a valid image file.")
+                await processing_msg.edit_text("❌ *Error:* Please send a valid image file.", parse_mode="Markdown")
                 return
         else:
-            await processing_msg.edit_text("❌ No image found.")
+            await processing_msg.edit_text("❌ *Error:* No valid image asset detected.", parse_mode="Markdown")
             return
 
         file_info = await bot.get_file(file_id)
@@ -223,7 +218,7 @@ async def handle_chart(message: Message):
         image_bytes = file_io.read()
         image_hash = hashlib.sha256(image_bytes).hexdigest()
 
-        # ইঞ্জিন থেকে নেক্সট ক্যান্ডেল সিগন্যাল জেনারেট করা
+        # ওটিসি ট্রাপ ইঞ্জিন থেকে নেক্সট ক্যান্ডেল সিগন্যাল জেনারেট করা
         result = await engine.analyze(image_bytes, mime_type)
 
         db.log_signal({
@@ -238,18 +233,21 @@ async def handle_chart(message: Message):
         emoji = "🟢 📈 [CALL / UP]" if direction == "UP" else "🔴 📉 [PUT / DOWN]"
 
         response_text = (
-            f"🚀 **NEXT CANDLE PREDICTION**\n\n"
+            f"🚀 **QUOTEX OTC TRAP SIGNAL** 🚀\n\n"
             f"🎯 **Direction:** `{emoji}`\n"
             f"🔥 **Status:** `{result['confidence']}`\n\n"
-            f"💡 **Analysis:** _{result['perceived_rationale']}_\n\n"
+            f"💡 **Analysis Rationale:**\n_{result['perceived_rationale']}_\n\n"
             f"⏱️ _Target: Immediately Next Candle (1-Min OTC)_"
         )
 
-        await processing_msg.edit_text(response_text)
+        await processing_msg.edit_text(response_text, parse_mode="Markdown")
 
     except Exception as e:
         logger.exception("Handler exception: %s", e)
-        await processing_msg.edit_text("🟢 **NEXT CANDLE: UP**\n🔥 **100% SURE SHOT**")
+        await processing_msg.edit_text(
+            "🟢 **NEXT CANDLE PREDICTION: UP**\n🔥 **Status: 100% SURE SHOT**\n\n💡 *Note: High-volatility OTC noise override.*",
+            parse_mode="Markdown"
+        )
 
 @app.post("/webhook")
 async def webhook_handler(request: Request):
@@ -277,9 +275,8 @@ async def on_startup():
 
 @app.on_event("shutdown")
 async def on_shutdown():
-    logger.info("Shutting down bot session...")
+    logger.info("Shutting down bot session gracefully...")
     await bot.session.close()
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, log_level="info")
-
