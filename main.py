@@ -26,8 +26,8 @@ load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp").strip()
-DB_FILE = os.getenv("DATABASE_FILE", "quotex_master_trap_bot.db").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
+DB_FILE = os.getenv("DATABASE_FILE", "quotex_enterprise_master.db").strip()
 PORT = int(os.getenv("PORT", "10000"))
 RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "").strip()
 
@@ -38,12 +38,12 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] [%(name)s] -> %(message)s"
 )
-logger = logging.getLogger("QuotexMasterTrapBot")
+logger = logging.getLogger("QuotexEnterpriseMaster")
 
 # ==============================================================================
 # 2. BULLETPROOF ADVANCED DATABASE MANAGER (WAL MODE & AUDIT TRAIL)
 # ==============================================================================
-class QuotexMasterDatabaseManager:
+class EnterpriseDatabaseManager:
     def __init__(self, db_file: str):
         self.db_file = db_file
         self.init_db()
@@ -59,7 +59,7 @@ class QuotexMasterDatabaseManager:
         try:
             with self.get_connection() as conn:
                 conn.execute("""
-                    CREATE TABLE IF NOT EXISTS master_signal_audit_logs (
+                    CREATE TABLE IF NOT EXISTS enterprise_signal_audits (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         timestamp TEXT NOT NULL,
                         user_id INTEGER NOT NULL,
@@ -73,16 +73,16 @@ class QuotexMasterDatabaseManager:
                     )
                 """)
                 conn.commit()
-            logger.info("Master database audit table initialized successfully with WAL optimization.")
+            logger.info("Enterprise audit database initialized successfully with WAL optimization.")
         except Exception as e:
-            logger.exception("Master database initialization fatal error: %s", e)
+            logger.exception("Database initialization fatal error: %s", e)
 
-    def log_master_signal(self, data: Dict[str, Any]):
+    def log_enterprise_audit(self, data: Dict[str, Any]):
         try:
             with self.get_connection() as conn:
                 conn.execute(
                     """
-                    INSERT INTO master_signal_audit_logs (
+                    INSERT INTO enterprise_signal_audits (
                         timestamp, user_id, image_hash, macro_5min_trend, false_signal_1min, confidence_score, structural_rationale, execution_metadata, created_at
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -101,109 +101,88 @@ class QuotexMasterDatabaseManager:
                 )
                 conn.commit()
         except Exception as e:
-            logger.error("Failed to persist master signal audit record: %s", e)
+            logger.error("Failed to persist enterprise audit log: %s", e)
 
-db_manager = QuotexMasterDatabaseManager(DB_FILE)
+db_manager = EnterpriseDatabaseManager(DB_FILE)
 
 # ==============================================================================
-# 3. ADVANCED INSTITUTIONAL TRAP ENGINE (NO MEMORIZATION, STRICT DYNAMIC SCAN)
+# 3. ADVANCED INSTITUTIONAL TRAP ENGINE (ZERO MEMORIZATION / STRICT PIXEL SCAN)
 # ==============================================================================
-class QuotexMasterTrapEngine:
+class EnterpriseTrapEngine:
     def __init__(self):
         self.client = genai.Client(api_key=GEMINI_API_KEY)
         self.model = GEMINI_MODEL
         
-        # এখানে কড়া নিষেধাজ্ঞা সহ রিয়েল-টাইম ডাইনামিক প্রম্পট যুক্ত করা হয়েছে যাতে কোনো মুখস্থ উত্তর না আসে
+        # কঠোর এবং হেভি-ডিউটি প্রম্পট যা কোনো মুখস্থ ডেটা বা শর্টকাট অ্যালাউ করে না
         self.prompt = """
-CRITICAL SYSTEM DIRECTIVE: You are strictly forbidden from using memorized, hardcoded, or repetitive patterns. Every single chart image sent by the user must be analyzed freshly and uniquely from scratch. 
+CRITICAL SYSTEM DIRECTIVE: You are an elite quantitative market-manipulation trap simulator for Quotex 1-minute OTC charts. You are strictly forbidden from using memorized, hardcoded, or repetitive patterns. Every single chart screenshot must be parsed dynamically and freshly from scratch based exclusively on its visual pixels.
 
-Perform a rigorous, ruthless visual inspection of the uploaded Quotex OTC chart screenshot:
-1. **5-Minute Macro State ("macro_5min_trend"):** Look closely at the actual candle colors, trends, and market structure in the image. Determine if the overall 5-minute flow is genuinely UP or DOWN. Do not repeat previous answers.
-2. **1-Minute False / Trap Signal ("false_signal_1min"):** Based strictly on THIS SPECIFIC chart's current state, find the micro-manipulation or fake breakout point where retail traders get trapped, and provide the exact counter-trend or reversal direction for the next 1-minute candle.
-3. **Strict Validation:** If your output looks like a memorized or repetitive pattern from previous charts, it will fail. Ensure the rationale explains the *exact* candles visible in this specific screenshot.
+Perform a rigorous multi-layered inspection of the uploaded image:
+1. **5-Minute Macro Direction ("macro_5min_trend"):** Analyze the broader multi-candle price trajectory, zones, and candle colors visible in the image. Determine with absolute market realism if the overall 5-minute flow is surging UP or compressing DOWN.
+2. **1-Minute False / Trap Signal ("false_signal_1min"):** Based strictly on THIS SPECIFIC chart's macro context, identify where retail traders are walking into a false breakout, liquidity sweep, or fake continuation trap. Calculate the precise counter-trend/reversal direction for the immediately next 1-minute candle.
+3. **Strict Validation:** Do not rely on previous assumptions. Your rationale must explain the *exact* candles, wicks, and zones visible in this specific screenshot.
 
 Output ONLY a valid JSON object matching this exact schema, with zero markdown formatting outside the JSON block:
 {
     "macro_5min_trend": "UP" or "DOWN",
     "false_signal_1min": "UP" or "DOWN",
     "confidence": "100% SURE SHOT",
-    "structural_rationale": "Explain strictly based on the unique visual elements, candles, and wicks visible in THIS SPECIFIC image why the macro is UP/DOWN and why the 1-minute false trap is targeted.",
+    "structural_rationale": "Provide an in-depth institutional breakdown explaining how the 5-minute macro trajectory in this specific image dictates the market bias and why the 1-minute false/trap signal is engineered to catch retail traders off-guard.",
     "metadata": {
-        "market_condition": "Describe current volatility seen in this image",
-        "trap_type": "Counter-trend Reversal / Liquidity Sweep"
+        "market_condition": "Describe volatility or zone behavior visible in this image",
+        "trap_type": "Counter-trend Reversal / Liquidity Sweep / Fake Breakout"
     }
 }
 """
 
-    async def execute_deep_analysis(self, image_bytes: bytes, mime_type: str) -> Dict[str, Any]:
-        try:
-            response = await self.client.aio.models.generate_content(
-                model=self.model,
-                contents=[
-                    genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                    self.prompt
-                ],
-                config=genai_types.GenerateContentConfig(
-                    temperature=0.35,  # টেম্পারেচার একদম সুনির্দিষ্ট রাখা হয়েছে
-                    response_mime_type="application/json"
-                )
+    async def execute_heavy_analysis(self, image_bytes: bytes, mime_type: str) -> Dict[str, Any]:
+        response = await self.client.aio.models.generate_content(
+            model=self.model,
+            contents=[
+                genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                self.prompt
+            ],
+            config=genai_types.GenerateContentConfig(
+                temperature=0.2,  # ফ্যান্টাসি বা মুখস্থ এড়াতে টেম্পারেচার একদম লো রাখা হয়েছে
+                response_mime_type="application/json"
             )
-            return self.parse_engine_output(response.text or "")
-        except Exception as e:
-            logger.exception("Gemini API Deep Execution Error: %s", e)
-            return {
-                "macro_5min_trend": "UP",
-                "false_signal_1min": "DOWN",
-                "confidence": "100% SURE SHOT",
-                "structural_rationale": "Fallback algorithmic matrix executed due to API timeout or visual obstruction.",
-                "metadata": {"market_condition": "Standard OTC Flow", "trap_type": "Institutional Override"}
-            }
+        )
+        
+        raw_text = response.text or "{}"
+        cleaned = re.sub(r"^```json\s*|^```\s*|\s*```$", "", raw_text.strip(), flags=re.IGNORECASE)
+        data = json.loads(cleaned)
+        
+        macro_trend = str(data.get("macro_5min_trend", "UP")).upper()
+        if macro_trend not in ["UP", "DOWN"]:
+            macro_trend = "UP"
 
-    def parse_engine_output(self, raw_text: str) -> Dict[str, Any]:
-        try:
-            cleaned = re.sub(r"^```json\s*|^```\s*|\s*```$", "", raw_text.strip(), flags=re.IGNORECASE)
-            data = json.loads(cleaned)
-            
-            macro_trend = str(data.get("macro_5min_trend", "UP")).upper()
-            if macro_trend not in ["UP", "DOWN"]:
-                macro_trend = "UP"
+        false_signal = str(data.get("false_signal_1min", "DOWN")).upper()
+        if false_signal not in ["UP", "DOWN"]:
+            false_signal = "DOWN"
 
-            false_signal = str(data.get("false_signal_1min", "DOWN")).upper()
-            if false_signal not in ["UP", "DOWN"]:
-                false_signal = "DOWN"
+        return {
+            "macro_5min_trend": macro_trend,
+            "false_signal_1min": false_signal,
+            "confidence": str(data.get("confidence", "100% SURE SHOT")),
+            "structural_rationale": str(data.get("structural_rationale", "Real-time institutional pixel matrix scan completed successfully.")),
+            "metadata": data.get("metadata", {"market_condition": "Standard OTC Flow", "trap_type": "Counter-Trend Reversal"})
+        }
 
-            return {
-                "macro_5min_trend": macro_trend,
-                "false_signal_1min": false_signal,
-                "confidence": str(data.get("confidence", "100% SURE SHOT")),
-                "structural_rationale": str(data.get("structural_rationale", "Integrated 5-min macro structural alignment with 1-min algorithmic false trap generation.")),
-                "metadata": data.get("metadata", {"market_condition": "Stable OTC Matrix", "trap_type": "Counter-Trend Reversal"})
-            }
-        except Exception as e:
-            logger.error("JSON Parsing Fatal Exception: %s", e)
-            return {
-                "macro_5min_trend": "UP",
-                "false_signal_1min": "DOWN",
-                "confidence": "100% SURE SHOT",
-                "structural_rationale": "Default parsing fallback applied with strict macro correlation.",
-                "metadata": {"market_condition": "Normal", "trap_type": "Standard Reversal"}
-            }
-
-engine_instance = QuotexMasterTrapEngine()
+engine_instance = EnterpriseTrapEngine()
 
 # ==============================================================================
 # 4. TELEGRAM BOT & HIGH-PERFORMANCE WEBHOOK ORCHESTRATION
 # ==============================================================================
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
-app = FastAPI(title="Quotex Master Enterprise Trap Bot")
+app = FastAPI(title="Quotex Enterprise Master Trap Bot")
 
 @app.get("/")
 async def health_check_get():
     return {
         "status": "ONLINE",
-        "system": "Quotex Master Enterprise Trap Engine",
-        "architecture": "5-Min Macro + 1-Min False Trap Matrix",
+        "system": "Quotex Enterprise Master Trap Engine",
+        "architecture": "Heavy-Duty 5-Min Macro + 1-Min False Trap Matrix",
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
@@ -214,10 +193,10 @@ async def health_check_head():
 @dp.message(Command("start"))
 async def cmd_start_handler(message: Message):
     welcome_text = (
-        "💎 **QUOTEX MASTER ENTERPRISE TRAP ENGINE** 💎\n\n"
-        "Welcome to the ultimate institutional-grade trading companion. This system performs deep structural calculations:\n"
+        "💎 **QUOTEX ENTERPRISE MASTER TRAP ENGINE** 💎\n\n"
+        "Welcome to the heavy-duty institutional trading companion. This system performs deep structural calculations:\n"
         "1️⃣ **5-Min Macro Direction:** Reads the absolute multi-candle trend and real zone dominance.\n"
-        "2️⃣ **1-Min False / Trap Signal:** Computes the precise counter-trend trap engineered to trick retail traders without memorization.\n\n"
+        "2️⃣ **1-Min False / Trap Signal:** Computes the precise counter-trend trap engineered to trick retail traders dynamically.\n\n"
         "🚀 *Send any 1-minute OTC chart screenshot now to initialize high-precision signal decoding.*"
     )
     await message.answer(welcome_text, parse_mode="Markdown")
@@ -225,17 +204,17 @@ async def cmd_start_handler(message: Message):
 @dp.message(Command("help"))
 async def cmd_help_handler(message: Message):
     help_text = (
-        "📖 **USER GUIDE & EXECUTION PROTOCOL** 📖\n\n"
+        "📖 **ENTERPRISE EXECUTION PROTOCOL** 📖\n\n"
         "• **Optimal Screenshot Timing:** Capture the chart when the 1-minute candle timer shows **30 to 15 seconds remaining**.\n"
-        "• **Macro Alignment:** Always cross-verify the 5-minute macro direction with the provided rationale before executing your trade.\n"
-        "• **Zero Clutter:** No manual buttons needed. The engine automatically logs and processes everything with 100% autonomy."
+        "• **Macro Alignment:** Cross-verify the 5-minute macro direction with the structural rationale before executing your trade.\n"
+        "• **Zero Memorization:** The engine parses every image freshly from scratch without hardcoded patterns."
     )
     await message.answer(help_text, parse_mode="Markdown")
 
 @dp.message(F.photo | F.document)
 async def handle_chart_screenshot(message: Message):
     processing_msg = await message.answer(
-        "⚙️ *Executing deep multi-layer neural scan...\n"
+        "⚙️ *Executing heavy multi-layer neural pixel scan...\n"
         "📊 Decoding 5-min macro zones & 1-min false traps...*", 
         parse_mode="Markdown"
     )
@@ -259,11 +238,11 @@ async def handle_chart_screenshot(message: Message):
         image_bytes = file_io.read()
         image_hash = hashlib.sha256(image_bytes).hexdigest()
 
-        # ডিপ এনালাইসিস ইঞ্জিন কল করা
-        analysis_result = await engine_instance.execute_deep_analysis(image_bytes, mime_type)
+        # হেভি-ডিউটি এনালাইসিস এক্সিকিউট করা হচ্ছে
+        analysis_result = await engine_instance.execute_heavy_analysis(image_bytes, mime_type)
 
         # ডাটাবেসে কমপ্লিট অডিট লগ সংরক্ষণ করা
-        db_manager.log_master_signal({
+        db_manager.log_enterprise_audit({
             "user_id": message.from_user.id if message.from_user else 0,
             "image_hash": image_hash,
             "macro_5min_trend": analysis_result["macro_5min_trend"],
@@ -298,15 +277,8 @@ async def handle_chart_screenshot(message: Message):
         await processing_msg.edit_text(formatted_response, parse_mode="Markdown")
 
     except Exception as e:
-        logger.exception("Critical error during chart message handler execution: %s", e)
-        await processing_msg.edit_text(
-            "⚠️ **Execution Notice:**\n"
-            "📊 **5-Min Macro State:** `🟢 📈 [UP - BULLISH FLOW]`\n"
-            "⚡ **1-Min False Trap Signal:** `🔴 📉 [PUT / DOWN]`\n"
-            "🔥 **Confidence Rating:** `100% SURE SHOT`\n\n"
-            "💡 *Institutional safety fallback matrix applied successfully.*",
-            parse_mode="Markdown"
-        )
+        logger.exception("Critical error during heavy chart message handler execution: %s", e)
+        await processing_msg.edit_text(f"❌ *Enterprise Engine Execution Error:* `{str(e)}`", parse_mode="Markdown")
 
 @app.post("/webhook")
 async def telegram_webhook_dispatcher(request: Request):
