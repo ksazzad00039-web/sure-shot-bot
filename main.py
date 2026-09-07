@@ -106,31 +106,31 @@ class QuotexMasterDatabaseManager:
 db_manager = QuotexMasterDatabaseManager(DB_FILE)
 
 # ==============================================================================
-# 3. ADVANCED INSTITUTIONAL TRAP ENGINE (DEEP MACRO & FALSE SIGNAL MATRIX)
+# 3. ADVANCED INSTITUTIONAL TRAP ENGINE (NO MEMORIZATION, STRICT DYNAMIC SCAN)
 # ==============================================================================
 class QuotexMasterTrapEngine:
     def __init__(self):
         self.client = genai.Client(api_key=GEMINI_API_KEY)
         self.model = GEMINI_MODEL
         
-        # অত্যন্ত ভারী, নিখুঁত এবং মাল্টি-লেয়ারড প্রম্পট যা ৫ মিনিটের ম্যাক্রো এবং ১ মিনিটের ফলস সিগন্যালের নিখুঁত হিসাব করবে
+        # এখানে কড়া নিষেধাজ্ঞা সহ রিয়েল-টাইম ডাইনামিক প্রম্পট যুক্ত করা হয়েছে যাতে কোনো মুখস্থ উত্তর না আসে
         self.prompt = """
-You are an ultra-advanced institutional quantitative trader and market-manipulation trap simulator specialized exclusively in Quotex 1-minute OTC synthetic chart architectures. Your primary objective is to eliminate retail noise and decode hidden algorithmic traps.
+CRITICAL SYSTEM DIRECTIVE: You are strictly forbidden from using memorized, hardcoded, or repetitive patterns. Every single chart image sent by the user must be analyzed freshly and uniquely from scratch. 
 
-Perform a rigorous, multi-layered visual inspection of the uploaded chart screenshot by evaluating the following components:
-1. **5-Minute Macro Structural State ("macro_5min_trend"):** Analyze the broader multi-candle trajectory, support/resistance bands, and zone dominance. Determine with absolute market realism whether the overall 5-minute directional flow is fundamentally surging UP or compressing DOWN.
-2. **1-Minute False / Trap Signal ("false_signal_1min"):** Based heavily on the 5-minute macro context, identify where retail traders are getting overly confident and falling into a false breakout or fake continuation trap. Calculate the precise counter-trend/reversal direction for the immediately next 1-minute candle that exploits this retail trap. (If the 5-min macro context dictates a specific flow, find the exact micro-manipulation point where the 1-minute candle delivers a deceptive false push in the opposite or trap direction).
-3. **Execution Confidence & Metadata ("confidence" & "metadata"):** Rate the structural integrity and extract market volatility indicators (e.g., consolidation, high momentum, wick rejection).
+Perform a rigorous, ruthless visual inspection of the uploaded Quotex OTC chart screenshot:
+1. **5-Minute Macro State ("macro_5min_trend"):** Look closely at the actual candle colors, trends, and market structure in the image. Determine if the overall 5-minute flow is genuinely UP or DOWN. Do not repeat previous answers.
+2. **1-Minute False / Trap Signal ("false_signal_1min"):** Based strictly on THIS SPECIFIC chart's current state, find the micro-manipulation or fake breakout point where retail traders get trapped, and provide the exact counter-trend or reversal direction for the next 1-minute candle.
+3. **Strict Validation:** If your output looks like a memorized or repetitive pattern from previous charts, it will fail. Ensure the rationale explains the *exact* candles visible in this specific screenshot.
 
 Output ONLY a valid JSON object matching this exact schema, with zero markdown formatting outside the JSON block:
 {
     "macro_5min_trend": "UP" or "DOWN",
     "false_signal_1min": "UP" or "DOWN",
     "confidence": "100% SURE SHOT",
-    "structural_rationale": "Provide an in-depth, professional institutional breakdown explaining how the 5-minute macro trajectory dictates the market bias and why the 1-minute false/trap signal is engineered to catch retail traders off-guard.",
+    "structural_rationale": "Explain strictly based on the unique visual elements, candles, and wicks visible in THIS SPECIFIC image why the macro is UP/DOWN and why the 1-minute false trap is targeted.",
     "metadata": {
-        "market_condition": "Describe volatility or zone behavior briefly",
-        "trap_type": "Counter-trend Reversal / Liquidity Sweep / Fake Breakout"
+        "market_condition": "Describe current volatility seen in this image",
+        "trap_type": "Counter-trend Reversal / Liquidity Sweep"
     }
 }
 """
@@ -144,7 +144,7 @@ Output ONLY a valid JSON object matching this exact schema, with zero markdown f
                     self.prompt
                 ],
                 config=genai_types.GenerateContentConfig(
-                    temperature=0.35,  # টেম্পারেচার সুনির্দিষ্ট রাখা হয়েছে যাতে জেনারেটিভ ফ্যান্টাসি না হয়ে খাঁটি চার্ট ডেটা প্রসেস হয়
+                    temperature=0.35,  # টেম্পারেচার একদম সুনির্দিষ্ট রাখা হয়েছে
                     response_mime_type="application/json"
                 )
             )
@@ -217,7 +217,7 @@ async def cmd_start_handler(message: Message):
         "💎 **QUOTEX MASTER ENTERPRISE TRAP ENGINE** 💎\n\n"
         "Welcome to the ultimate institutional-grade trading companion. This system performs deep structural calculations:\n"
         "1️⃣ **5-Min Macro Direction:** Reads the absolute multi-candle trend and real zone dominance.\n"
-        "2️⃣ **1-Min False / Trap Signal:** Computes the precise counter-trend trap engineered to trick retail traders.\n\n"
+        "2️⃣ **1-Min False / Trap Signal:** Computes the precise counter-trend trap engineered to trick retail traders without memorization.\n\n"
         "🚀 *Send any 1-minute OTC chart screenshot now to initialize high-precision signal decoding.*"
     )
     await message.answer(welcome_text, parse_mode="Markdown")
@@ -341,3 +341,4 @@ async def server_shutdown_routine():
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, log_level="info")
+
